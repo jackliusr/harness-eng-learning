@@ -3,7 +3,9 @@ import json
 import os
 from pathlib import Path
 import sys
-
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from uuid import uuid4
 from openai import OpenAI
 
 # 127.0.0.1:11434
@@ -19,6 +21,7 @@ MAX_TOOL_CALLS = 24
 PROJECT_CONTEXT_PATH = ".loop/PROJECT.md"
 MAX_INIT_FILES = 120
 MAX_DOC_PREVIEW_CHARS = 2000
+MEMORY_PATH = ".loop/memory.json"
 
 
 client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
@@ -35,7 +38,127 @@ IGNORED_NAMES = {
 
 INTERNAL_DIR = WORKSPACE / ".loop"
 
+@dataclass
+class Memory:
+    id: str
+    text: str
+    kind: str
+    scope: str
+    created_at: str
 
+def memory_path(workspace: Path) -> Path:
+    return workspace / MEMORY_PATH
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def load_memories(workspace: Path) -> list[Memory]:
+    path = memory_path(workspace)
+    if not path.exists():
+        return []
+
+    raw = json.loads(path.read_text())
+    return [Memory(**item) for item in raw]
+
+
+def save_memories(workspace: Path, memories: list[Memory]) -> None:
+    path = memory_path(workspace)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = [asdict(memory) for memory in memories]
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def remember(
+    workspace: Path,
+    text: str,
+    *,
+    kind: str = "semantic",
+    scope: str = "project",
+) -> Memory:
+    memories = load_memories(workspace)
+    memory = Memory(
+        id=uuid4().hex[:8],
+        text=text.strip(),
+        kind=kind,
+        scope=scope,
+        created_at=now_iso(),
+    )
+    memories.append(memory)
+    save_memories(workspace, memories)
+    return memory
+
+
+def forget(workspace: Path, memory_id: str) -> bool:
+    memories = load_memories(workspace)
+    kept = [memory for memory in memories if memory.id != memory_id]
+    if len(kept) == len(memories):
+        return False
+    save_memories(workspace, kept)
+    return True
+
+
+def update_memory(workspace: Path, memory_id: str, text: str) -> bool:
+    memories = load_memories(workspace)
+    for memory in memories:
+        if memory.id == memory_id:
+            memory.text = text.strip()
+            save_memories(workspace, memories)
+            return True
+    return False
+
+
+def search_memories(
+    workspace: Path,
+    query: str,
+    *,
+    limit: int = 8,
+) -> list[Memory]:
+    words = {word.lower() for word in query.split() if len(word) > 2}
+    if not words:
+        return []
+
+    scored = []
+    for memory in load_memories(workspace):
+        text = memory.text.lower()
+        score = sum(1 for word in words if word in text)
+        if score:
+            scored.append((score, memory))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [memory for _, memory in scored[:limit]]
+
+
+def render_memory_context(memories: list[Memory]) -> str:
+    if not memories:
+        return ""
+
+    lines = ["Relevant saved memories:"]
+    for memory in memories:
+        lines.append(f"- [{memory.scope}/{memory.kind}] {memory.text}")
+    return "\n".join(lines)
+
+
+def build_context(task: str, workspace: Path) -> str:
+    memories = search_memories(workspace, task)
+    memory_context = render_memory_context(memories)
+    if not memory_context:
+        return task
+    return f"{memory_context}\n\nUser task:\n{task}"
+
+
+def build_messages(task: str, workspace: Path) -> list[dict]:
+    return [
+        {
+            "role": "system",
+            "content": "You are a careful coding agent.",
+        },
+        {
+            "role": "user",
+            "content": build_context(task, workspace),
+        },
+    ]
 
 def context_path(workspace: Path) -> Path:
     return workspace / PROJECT_CONTEXT_PATH
