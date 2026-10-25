@@ -22,6 +22,9 @@ PROJECT_CONTEXT_PATH = ".loop/PROJECT.md"
 MAX_INIT_FILES = 120
 MAX_DOC_PREVIEW_CHARS = 2000
 MEMORY_PATH = ".loop/memory.json"
+RUN_PATH = ".loop/RUN.md"
+MAX_FIELD_CHARS = 500
+MAX_RECENT_RESULTS = 12
 
 
 client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
@@ -49,10 +52,150 @@ class Memory:
 def memory_path(workspace: Path) -> Path:
     return workspace / MEMORY_PATH
 
+def run_path(workspace: Path) -> Path:
+    return workspace / RUN_PATH
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+def shorten(value: object, limit: int = MAX_FIELD_CHARS) -> str:
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "..."
+
+def collect_tool_results(messages: list[dict]) -> list[dict]:
+    arguments_by_id = {}
+    for message in messages:
+        for tool_call in message.get("tool_calls") or []:
+            try:
+                arguments = json.loads(
+                    tool_call.get("function", {}).get("arguments") or "{}"
+                )
+            except json.JSONDecodeError:
+                arguments = {}
+            arguments_by_id[tool_call.get("id")] = arguments
+
+    results = []
+    for message in messages:
+        if message.get("role") != "tool":
+            continue
+        try:
+            result = json.loads(message.get("content", "{}"))
+        except json.JSONDecodeError:
+            continue
+        path = arguments_by_id.get(message.get("tool_call_id"), {}).get("path")
+        if path:
+            result.setdefault("path", path)
+        results.append(result)
+    return results
+
+def unique(values: list[str]) -> list[str]:
+    seen = set()
+    ordered = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
+
+
+def compact_history(
+    task: str,
+    messages: list[dict],
+    *,
+    stop_reason: str = "unknown",
+) -> str:
+    results = collect_tool_results(messages)
+    recent = results[-MAX_RECENT_RESULTS:]
+    files = unique(
+        [
+            str(result.get("path") or result.get("file") or "")
+            for result in results
+        ]
+    )
+    tools = unique([str(result.get("tool") or "tool") for result in results])
+    failures = [result for result in results if not result.get("ok", True)]
+
+    lines = [
+        "# Run Handoff",
+        "",
+        f"Updated: `{now_iso()}`",
+        f"Stop reason: `{stop_reason}`",
+        "",
+        "## Goal",
+        "",
+        task,
+        "",
+        "## Tools Used",
+        "",
+    ]
+    lines.extend(f"- `{tool}`" for tool in tools or ["None recorded."])
+
+    lines.extend(["", "## Files Mentioned", ""])
+    lines.extend(f"- `{path}`" for path in files or ["None recorded."])
+
+    lines.extend(["", "## Recent Tool Results", ""])
+    for result in recent:
+        tool = result.get("tool", "tool")
+        ok = "ok" if result.get("ok", True) else "failed"
+        detail = result.get("message") or result.get("result") or ""
+        lines.append(f"- `{tool}` {ok}: {shorten(detail)}")
+
+    lines.extend(["", "## Failures To Keep In Mind", ""])
+    if failures:
+        for result in failures[-5:]:
+            tool = result.get("tool", "tool")
+            error = result.get("message") or result.get("error_type") or "unknown"
+            lines.append(f"- `{tool}` failed: {shorten(error)}")
+    else:
+        lines.append("- None recorded.")
+
+    lines.extend(
+        [
+            "",
+            "## Next Step",
+            "",
+            "- Continue from this handoff, but verify current files before editing.",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_handoff(
+    workspace: Path,
+    task: str,
+    messages: list[dict],
+    *,
+    stop_reason: str = "unknown",
+) -> Path:
+    path = run_path(workspace)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(compact_history(task, messages, stop_reason=stop_reason))
+    return path
+
+
+def build_messages_from_handoff(task: str, workspace: Path) -> list[dict]:
+    handoff = run_path(workspace)
+    context = ""
+    if handoff.exists():
+        context = handoff.read_text()
+
+    user_content = task
+    if context:
+        user_content = f"Run handoff:\n{context}\n\nUser task:\n{task}"
+
+    return [
+        {
+            "role": "system",
+            "content": "You are a careful coding agent. Verify stale context.",
+        },
+        {
+            "role": "user",
+            "content": user_content,
+        },
+    ]
 
 def load_memories(workspace: Path) -> list[Memory]:
     path = memory_path(workspace)
