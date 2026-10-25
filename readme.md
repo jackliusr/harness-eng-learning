@@ -8,6 +8,32 @@
 
 ### Harness Engineering 101
 ### The Loop, 
+
+
+1. The Smallest Coding Agent Loop
+
+1. Tools Are The Model's Hands
+
+1. The Harness Decides What Happens
+
+1. The Workspace Is The Agent's World
+
+1. Permissions Are Product Design
+
+1. Turning The Loop Into A CLI
+
+1. Project Context Is A Tool
+
+1. Memory Is External State
+
+1. Context Management Is Compression
+
+1. Testing The Harness Without A Model
+
+1. Evals Measure Agent Behavior
+
+1. Loop Engineering: The System That Prompts The Agent
+
 ### Carbon, and 
 ### the 11-harness source-code study.
 

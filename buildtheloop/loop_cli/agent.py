@@ -196,6 +196,13 @@ def build_messages_from_handoff(task: str, workspace: Path) -> list[dict]:
             "content": user_content,
         },
     ]
+def new_conversation() -> list[dict]:
+   return [
+        {
+            "role": "system",
+            "content": "You are a careful coding agent.",
+        },
+        ]
 
 def load_memories(workspace: Path) -> list[Memory]:
     path = memory_path(workspace)
