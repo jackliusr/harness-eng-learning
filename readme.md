@@ -5,6 +5,7 @@
 - [ ]  The Loop, 
 - [ ]  Carbon, and 
 - [ ]  the 11-harness source-code study.
+- [ ]  Agent Harness Architecture :Building a Coding Agent From Scratch
 
 ### Harness Engineering 101
 ### The Loop, 
@@ -44,3 +45,6 @@
 - The Anatomy of an Agent Harness — understand the architectural components.
 - 12-Factor Agents — apply production engineering principles.
 - [Harness Engineering: Anatomy, Architecture, and Evolution of Coding Agents — A Source-Code Study of Eleven Systems](https://arxiv.org/abs/2609.00006)
+- [Agent Harness Architecture :Building a Coding Agent From Scratch](https://levelup.gitconnected.com/agent-harness-architecture-building-a-coding-agent-from-scratch-ad42a86a74e8)
+- [Learn Agent Architecture](https://github.com/hardness1020/learn-agent-architecture/tree/main)
+- [agentic-harness-patterns-skill](https://github.com/2233admin/agentic-harness-patterns-skill/tree/master)
