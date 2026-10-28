@@ -35,6 +35,9 @@
 
 1. Loop Engineering: The System That Prompts The Agent
 
+
+[papers](./buildtheloop.md)
+
 ### Carbon, and 
 ### the 11-harness source-code study.
 
@@ -48,3 +51,4 @@
 - [Agent Harness Architecture :Building a Coding Agent From Scratch](https://levelup.gitconnected.com/agent-harness-architecture-building-a-coding-agent-from-scratch-ad42a86a74e8)
 - [Learn Agent Architecture](https://github.com/hardness1020/learn-agent-architecture/tree/main)
 - [agentic-harness-patterns-skill](https://github.com/2233admin/agentic-harness-patterns-skill/tree/master)
+- [Inside Claude Code](https://y-agent.github.io/inside-claude-code/)
